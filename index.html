@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Attendance System</title>
-    <!-- Load the Google API client library -->
+    <!-- Update to latest version of Google API client library -->
     <script src="https://apis.google.com/js/api.js"></script>
-    <!-- Add the Google Client library -->
     <script src="https://accounts.google.com/gsi/client"></script>
+    <!-- Your existing CSS remains the same -->
     <style>
-        /* Previous CSS remains same */
+        /* Your existing CSS here */
         * {
             margin: 0;
             padding: 0;
@@ -153,59 +153,73 @@
             margin-top: 10px;
             font-size: 14px;
         }
-
-        /* ... rest of the CSS remains same ... */
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Employee Attendance System</h1>
-        <div class="form-group">
-            <label for="email">Email:</label>
-            <input type="email" id="email" required>
-        </div>
-        <div class="form-group">
-            <label for="name">Full Name:</label>
-            <input type="text" id="name" required>
-        </div>
-        <div class="form-group">
-            <label for="tasks">Today's Tasks:</label>
-            <textarea id="tasks" placeholder="Enter your tasks for today"></textarea>
-        </div>
-        <div class="buttons">
-            <button class="login-btn" onclick="markAttendance('IN')">Punch In</button>
-            <button class="logout-btn" onclick="markAttendance('OUT')">Punch Out</button>
-        </div>
-        <div id="message" class="message"></div>
-        
-        <table id="recordsTable">
-            <thead>
-                <tr>
-                    <th>Email</th>
-                    <th>Name</th>
-                    <th>Date</th>
-                    <th>Time</th>
-                    <th>Status</th>
-                    <th>Tasks</th>
-                </tr>
-            </thead>
-            <tbody id="recordsBody"></tbody>
-        </table>
-        <div class="record-count" id="recordCount"></div>
+  <div class="container">
+    <h1>Employee Attendance System</h1>
+    <div class="form-group">
+        <label for="email">Email:</label>
+        <input type="email" id="email" required>
     </div>
+    <div class="form-group">
+        <label for="name">Full Name:</label>
+        <input type="text" id="name" required>
+    </div>
+    <div class="form-group">
+        <label for="tasks">Today's Tasks:</label>
+        <textarea id="tasks" placeholder="Enter your tasks for today"></textarea>
+    </div>
+    <div class="buttons">
+        <button class="login-btn" onclick="markAttendance('IN')">Punch In</button>
+        <button class="logout-btn" onclick="markAttendance('OUT')">Punch Out</button>
+    </div>
+    <div id="message" class="message"></div>
+    
+    <table id="recordsTable">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Name</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Tasks</th>
+            </tr>
+        </thead>
+        <tbody id="recordsBody"></tbody>
+    </table>
+    <div class="record-count" id="recordCount"></div>
+</div>
 
+    <!-- Your existing HTML remains the same -->
     <script>
         // Replace these with your actual values
-        const SPREADSHEET_ID = '11TC4SfHTOpaJfyeSvzIhvqJufIbpSpWK_pBbu1sJFa4';
-        const API_KEY = 'AIzaSyCvLXwl1B2QK6MoLNjEiQ26ml0n9X7A5ZM';
-        const SHEET_NAME = 'Attendance';
+        const SPREADSHEET_ID = '1MgTR-nErhInDloyh79sf7L6rdCs9opVSLlPGNiTfLeQ';
+        const API_KEY = 'AIzaSyDVfbeM2rmEUnQ4Pzm0SFiR5YXjo7VufKc';
+        const SHEET_NAME = 'Attendence System';
         
         // Load the Google Sheets API
         function loadSheetsAPI() {
-            gapi.load('client', initClient);
+            gapi.load('client', async () => {
+                try {
+                    await gapi.client.init({
+                        apiKey: API_KEY,
+                        discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
+                    });
+                    
+                    // Explicitly load the sheets API
+                    await gapi.client.load('sheets', 'v4');
+                    
+                    console.log('Google Sheets API initialized successfully');
+                    loadAttendanceRecords();
+                } catch (error) {
+                    console.error('Error initializing API:', error);
+                    showMessage('Error initializing Google Sheets API: ' + (error.message || 'Please check your API key and permissions'), 'error');
+                }
+            });
         }
 
-        // Initialize the Google Sheets API client
         async function initClient() {
             try {
                 await gapi.client.init({
@@ -219,12 +233,13 @@
             }
         }
 
+        // Rest of your JavaScript functions remain the same
         async function markAttendance(type) {
             if (!gapi.client?.sheets) {
                 showMessage('Please wait for API to initialize...', 'error');
                 return;
             }
-
+            // Rest of your markAttendance function...
             const email = document.getElementById('email').value.trim();
             const name = document.getElementById('name').value.trim();
             const tasks = document.getElementById('tasks').value.trim();
@@ -262,6 +277,8 @@
             }
         }
 
+        
+
         async function appendToSheet(record) {
             try {
                 const range = `${SHEET_NAME}!A:F`;
@@ -282,7 +299,6 @@
                 throw error;
             }
         }
-
         async function loadAttendanceRecords() {
             try {
                 const response = await gapi.client.sheets.spreadsheets.values.get({
@@ -327,6 +343,11 @@
 
         // Start loading the API when the page loads
         loadSheetsAPI();
+
+        // Rest of your functions remain the same...
+
+        // Call loadSheetsAPI when the page loads
+        window.onload = loadSheetsAPI;
     </script>
 </body>
 </html>
