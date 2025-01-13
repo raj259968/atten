@@ -4,12 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Attendance System</title>
-    <!-- Update to latest version of Google API client library -->
-    <script src="https://apis.google.com/js/api.js"></script>
+    <script async defer src="https://apis.google.com/js/api.js"></script>
     <script src="https://accounts.google.com/gsi/client"></script>
-    <!-- Your existing CSS remains the same -->
     <style>
-        /* Your existing CSS here */
         * {
             margin: 0;
             padding: 0;
@@ -35,7 +32,6 @@
             max-width: 800px;
         }
 
-       
         h1 {
             text-align: center;
             color: #333;
@@ -80,6 +76,12 @@
             font-size: 14px;
             font-weight: bold;
             color: white;
+            transition: opacity 0.3s;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         .login-btn {
@@ -90,12 +92,7 @@
             background-color: #f44336;
         }
 
-        .download-btn {
-            background-color: #2196F3;
-            margin-top: 10px;
-        }
-
-        button:hover {
+        button:hover:not(:disabled) {
             opacity: 0.9;
         }
 
@@ -103,12 +100,6 @@
             margin-top: 20px;
             max-height: 300px;
             overflow-y: auto;
-        }
-
-        .record {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-            font-size: 14px;
         }
 
         .message {
@@ -153,98 +144,127 @@
             margin-top: 10px;
             font-size: 14px;
         }
+
+        #loadingIndicator {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Employee Attendance System</h1>
-    <div class="form-group">
-        <label for="email">Email:</label>
-        <input type="email" id="email" required>
+    <div class="container">
+        <h1>Employee Attendance System</h1>
+        
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="name">Full Name:</label>
+            <input type="text" id="name" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="tasks">Today's Tasks:</label>
+            <textarea id="tasks" placeholder="Enter your tasks for today"></textarea>
+        </div>
+        
+        <div class="buttons">
+            <button id="punchInBtn" class="login-btn" onclick="markAttendance('IN')" disabled>Punch In</button>
+            <button id="punchOutBtn" class="logout-btn" onclick="markAttendance('OUT')" disabled>Punch Out</button>
+        </div>
+        
+        <div id="message" class="message"></div>
+        <div id="loadingIndicator">Initializing...</div>
+        
+        <table id="recordsTable">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>Tasks</th>
+                </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+        </table>
+        <div class="record-count" id="recordCount"></div>
     </div>
-    <div class="form-group">
-        <label for="name">Full Name:</label>
-        <input type="text" id="name" required>
-    </div>
-    <div class="form-group">
-        <label for="tasks">Today's Tasks:</label>
-        <textarea id="tasks" placeholder="Enter your tasks for today"></textarea>
-    </div>
-    <div class="buttons">
-        <button class="login-btn" onclick="markAttendance('IN')">Punch In</button>
-        <button class="logout-btn" onclick="markAttendance('OUT')">Punch Out</button>
-    </div>
-    <div id="message" class="message"></div>
-    
-    <table id="recordsTable">
-        <thead>
-            <tr>
-                <th>Email</th>
-                <th>Name</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Status</th>
-                <th>Tasks</th>
-            </tr>
-        </thead>
-        <tbody id="recordsBody"></tbody>
-    </table>
-    <div class="record-count" id="recordCount"></div>
-</div>
 
-    <!-- Your existing HTML remains the same -->
     <script>
-        // Replace these with your actual values
+        // Configuration
         const SPREADSHEET_ID = '1MgTR-nErhInDloyh79sf7L6rdCs9opVSLlPGNiTfLeQ';
         const API_KEY = 'AIzaSyDVfbeM2rmEUnQ4Pzm0SFiR5YXjo7VufKc';
-        const SHEET_NAME = 'Attendence System';
+        const SHEET_NAME = 'Attendance';
         
-        // Load the Google Sheets API
-        function loadSheetsAPI() {
-            gapi.load('client', async () => {
-                try {
-                    await gapi.client.init({
-                        apiKey: API_KEY,
-                        discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
-                    });
-                    
-                    // Explicitly load the sheets API
-                    await gapi.client.load('sheets', 'v4');
-                    
-                    console.log('Google Sheets API initialized successfully');
-                    loadAttendanceRecords();
-                } catch (error) {
-                    console.error('Error initializing API:', error);
-                    showMessage('Error initializing Google Sheets API: ' + (error.message || 'Please check your API key and permissions'), 'error');
-                }
-            });
+        // Global variables
+        let isApiReady = false;
+        
+        // Initialize the application
+        function initApp() {
+            gapi.load('client', initClient);
         }
 
+        // Initialize Google Sheets API client
         async function initClient() {
             try {
                 await gapi.client.init({
                     apiKey: API_KEY,
-                    discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+                    discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
                 });
-                console.log('Google Sheets API initialized');
-                loadAttendanceRecords();
+                
+                isApiReady = true;
+                enableButtons();
+                hideLoadingIndicator();
+                await loadAttendanceRecords();
+                
+                console.log('Google Sheets API initialized successfully');
             } catch (error) {
-                showMessage('Error initializing Google Sheets API: ' + error.message, 'error');
+                console.error('Error initializing API:', error);
+                showMessage('Error initializing API. Please check your internet connection and reload the page.', 'error');
+                hideLoadingIndicator();
             }
         }
 
-        // Rest of your JavaScript functions remain the same
+        // Enable/disable buttons based on form validation
+        function validateForm() {
+            const email = document.getElementById('email').value.trim();
+            const name = document.getElementById('name').value.trim();
+            const isValid = email && name && isApiReady;
+            
+            document.getElementById('punchInBtn').disabled = !isValid;
+            document.getElementById('punchOutBtn').disabled = !isValid;
+        }
+
+        // Enable buttons when API is ready
+        function enableButtons() {
+            const inputs = document.querySelectorAll('input, textarea');
+            inputs.forEach(input => {
+                input.addEventListener('input', validateForm);
+            });
+            validateForm();
+        }
+
+        // Hide loading indicator
+        function hideLoadingIndicator() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }
+
+        // Mark attendance (Punch In/Out)
         async function markAttendance(type) {
-            if (!gapi.client?.sheets) {
-                showMessage('Please wait for API to initialize...', 'error');
+            if (!isApiReady) {
+                showMessage('Please wait for system initialization...', 'error');
                 return;
             }
-            // Rest of your markAttendance function...
+
             const email = document.getElementById('email').value.trim();
             const name = document.getElementById('name').value.trim();
             const tasks = document.getElementById('tasks').value.trim();
-            const currentTime = new Date();
-            
+
             if (!email || !name) {
                 showMessage('Please enter your email and name', 'error');
                 return;
@@ -255,50 +275,53 @@
                 return;
             }
 
-            const record = [
-                email,
-                name,
-                currentTime.toLocaleDateString(),
-                currentTime.toLocaleTimeString(),
-                type,
-                tasks
-            ];
-
             try {
+                const currentTime = new Date();
+                const record = [
+                    email,
+                    name,
+                    currentTime.toLocaleDateString(),
+                    currentTime.toLocaleTimeString(),
+                    type,
+                    tasks
+                ];
+
                 await appendToSheet(record);
                 showMessage(`Punch ${type} recorded successfully!`, 'success');
-                loadAttendanceRecords();
+                await loadAttendanceRecords();
 
                 if (type === 'OUT') {
                     document.getElementById('tasks').value = '';
                 }
             } catch (error) {
-                showMessage('Error recording attendance: ' + error.message, 'error');
+                showMessage('Error recording attendance. Please try again.', 'error');
+                console.error('Error:', error);
             }
         }
 
-        
-
+        // Append record to Google Sheet
         async function appendToSheet(record) {
             try {
-                const range = `${SHEET_NAME}!A:F`;
-                const request = {
+                const response = await gapi.client.sheets.spreadsheets.values.append({
                     spreadsheetId: SPREADSHEET_ID,
-                    range: range,
+                    range: `${SHEET_NAME}!A:F`,
                     valueInputOption: 'USER_ENTERED',
                     insertDataOption: 'INSERT_ROWS',
                     resource: {
                         values: [record]
                     }
-                };
-
-                const response = await gapi.client.sheets.spreadsheets.values.append(request);
-                console.log('Append response:', response);
+                });
+                
+                if (response.status !== 200) {
+                    throw new Error('Failed to append data to sheet');
+                }
             } catch (error) {
                 console.error('Error appending to sheet:', error);
                 throw error;
             }
         }
+
+        // Load attendance records
         async function loadAttendanceRecords() {
             try {
                 const response = await gapi.client.sheets.spreadsheets.values.get({
@@ -309,27 +332,30 @@
                 const records = response.result.values || [];
                 updateDisplay(records);
             } catch (error) {
-                showMessage('Error loading records: ' + error.message, 'error');
+                showMessage('Error loading records', 'error');
+                console.error('Error loading records:', error);
             }
         }
 
+        // Update the display with records
         function updateDisplay(records) {
             const tbody = document.getElementById('recordsBody');
             tbody.innerHTML = '';
 
-            // Show records in reverse chronological order (skip header row)
+            // Display records in reverse chronological order (newest first)
             records.slice(1).reverse().forEach(record => {
                 const row = tbody.insertRow();
                 record.forEach(cell => {
                     const td = row.insertCell();
-                    td.textContent = cell;
+                    td.textContent = cell || '';
                 });
             });
 
             document.getElementById('recordCount').textContent = 
-                `Total Records: ${records.length - 1}`;
+                `Total Records: ${Math.max(0, records.length - 1)}`;
         }
 
+        // Show message with type (success/error)
         function showMessage(text, type) {
             const messageDiv = document.getElementById('message');
             messageDiv.textContent = text;
@@ -341,13 +367,8 @@
             }, 3000);
         }
 
-        // Start loading the API when the page loads
-        loadSheetsAPI();
-
-        // Rest of your functions remain the same...
-
-        // Call loadSheetsAPI when the page loads
-        window.onload = loadSheetsAPI;
+        // Add event listener for page load
+        window.addEventListener('load', initApp);
     </script>
 </body>
 </html>
