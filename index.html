@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Attendance System</title>
+    <!-- Load the Google API client library -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <!-- Add the Google Client library -->
+    <script src="https://accounts.google.com/gsi/client"></script>
+    <style>
+        /* Previous CSS remains same */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #f0f2f5;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+        }
+
+       
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .login-btn {
+            background-color: #4CAF50;
+        }
+
+        .logout-btn {
+            background-color: #f44336;
+        }
+
+        .download-btn {
+            background-color: #2196F3;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        #records {
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .record {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        .message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            display: none;
+        }
+
+        .success {
+            background-color: #e8f5e9;
+            color: #4CAF50;
+        }
+
+        .error {
+            background-color: #ffebee;
+            color: #f44336;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border: 1px solid #ddd;
+            font-size: 14px;
+        }
+
+        th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+
+        .record-count {
+            text-align: right;
+            color: #666;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        /* ... rest of the CSS remains same ... */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Employee Attendance System</h1>
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" required>
+        </div>
+        <div class="form-group">
+            <label for="name">Full Name:</label>
+            <input type="text" id="name" required>
+        </div>
+        <div class="form-group">
+            <label for="tasks">Today's Tasks:</label>
+            <textarea id="tasks" placeholder="Enter your tasks for today"></textarea>
+        </div>
+        <div class="buttons">
+            <button class="login-btn" onclick="markAttendance('IN')">Punch In</button>
+            <button class="logout-btn" onclick="markAttendance('OUT')">Punch Out</button>
+        </div>
+        <div id="message" class="message"></div>
+        
+        <table id="recordsTable">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>Tasks</th>
+                </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+        </table>
+        <div class="record-count" id="recordCount"></div>
+    </div>
+
+    <script>
+        // Replace these with your actual values
+        const SPREADSHEET_ID = '11TC4SfHTOpaJfyeSvzIhvqJufIbpSpWK_pBbu1sJFa4';
+        const API_KEY = 'AIzaSyCvLXwl1B2QK6MoLNjEiQ26ml0n9X7A5ZM';
+        const SHEET_NAME = 'Attendance';
+        
+        // Load the Google Sheets API
+        function loadSheetsAPI() {
+            gapi.load('client', initClient);
+        }
+
+        // Initialize the Google Sheets API client
+        async function initClient() {
+            try {
+                await gapi.client.init({
+                    apiKey: API_KEY,
+                    discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+                });
+                console.log('Google Sheets API initialized');
+                loadAttendanceRecords();
+            } catch (error) {
+                showMessage('Error initializing Google Sheets API: ' + error.message, 'error');
+            }
+        }
+
+        async function markAttendance(type) {
+            if (!gapi.client?.sheets) {
+                showMessage('Please wait for API to initialize...', 'error');
+                return;
+            }
+
+            const email = document.getElementById('email').value.trim();
+            const name = document.getElementById('name').value.trim();
+            const tasks = document.getElementById('tasks').value.trim();
+            const currentTime = new Date();
+            
+            if (!email || !name) {
+                showMessage('Please enter your email and name', 'error');
+                return;
+            }
+
+            if (type === 'IN' && !tasks) {
+                showMessage('Please enter your tasks for today', 'error');
+                return;
+            }
+
+            const record = [
+                email,
+                name,
+                currentTime.toLocaleDateString(),
+                currentTime.toLocaleTimeString(),
+                type,
+                tasks
+            ];
+
+            try {
+                await appendToSheet(record);
+                showMessage(`Punch ${type} recorded successfully!`, 'success');
+                loadAttendanceRecords();
+
+                if (type === 'OUT') {
+                    document.getElementById('tasks').value = '';
+                }
+            } catch (error) {
+                showMessage('Error recording attendance: ' + error.message, 'error');
+            }
+        }
+
+        async function appendToSheet(record) {
+            try {
+                const range = `${SHEET_NAME}!A:F`;
+                const request = {
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: range,
+                    valueInputOption: 'USER_ENTERED',
+                    insertDataOption: 'INSERT_ROWS',
+                    resource: {
+                        values: [record]
+                    }
+                };
+
+                const response = await gapi.client.sheets.spreadsheets.values.append(request);
+                console.log('Append response:', response);
+            } catch (error) {
+                console.error('Error appending to sheet:', error);
+                throw error;
+            }
+        }
+
+        async function loadAttendanceRecords() {
+            try {
+                const response = await gapi.client.sheets.spreadsheets.values.get({
+                    spreadsheetId: SPREADSHEET_ID,
+                    range: `${SHEET_NAME}!A:F`
+                });
+
+                const records = response.result.values || [];
+                updateDisplay(records);
+            } catch (error) {
+                showMessage('Error loading records: ' + error.message, 'error');
+            }
+        }
+
+        function updateDisplay(records) {
+            const tbody = document.getElementById('recordsBody');
+            tbody.innerHTML = '';
+
+            // Show records in reverse chronological order (skip header row)
+            records.slice(1).reverse().forEach(record => {
+                const row = tbody.insertRow();
+                record.forEach(cell => {
+                    const td = row.insertCell();
+                    td.textContent = cell;
+                });
+            });
+
+            document.getElementById('recordCount').textContent = 
+                `Total Records: ${records.length - 1}`;
+        }
+
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = `message ${type}`;
+            messageDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // Start loading the API when the page loads
+        loadSheetsAPI();
+    </script>
+</body>
+</html>
